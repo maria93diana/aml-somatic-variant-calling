@@ -1,0 +1,12 @@
+data/raw/
+data/reference/
+results/
+*.bam
+*.bai
+*.vcf.gz
+*.vcf
+*.fastq.gz
+work/
+.nextflow/
+.nextflow.log*
+.DS_Store
