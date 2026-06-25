@@ -1,0 +1,196 @@
+---
+title: "AML Somatic Mutation Landscape — TCGA-LAML Cohort"
+author: "Maria Antonietta Diana"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    theme: flatly
+    toc: true
+    toc_float: true
+    code_folding: show
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE,
+                      fig.width = 10, fig.height = 6)
+```
+
+## Dataset
+
+This analysis examines the somatic mutation landscape of **Acute Myeloid Leukaemia (AML)** using open-access data from The Cancer Genome Atlas (**TCGA-LAML** cohort, n=153 patients).
+
+Somatic mutation calls were downloaded from the GDC Data Portal (masked somatic mutations, Mutect2 ensemble calls, hg38). Individual per-sample MAF files were merged using `scripts/part2_aml_cohort/03_merge_maf_files.py`.
+
+---
+
+## Setup
+
+```{r libraries}
+library(maftools)
+library(tidyverse)
+library(RColorBrewer)
+```
+
+```{r load-maf}
+maf <- read.maf("../data/processed/TCGA-LAML-merged.maf")
+```
+
+---
+
+## Cohort Summary
+
+```{r summary}
+getSampleSummary(maf) %>% head(10)
+```
+
+```{r gene-summary}
+getGeneSummary(maf) %>% head(20)
+```
+
+```{r plot-summary, fig.height=8}
+plotmafSummary(maf,
+               rmOutlier = TRUE,
+               addStat   = "median",
+               dashboard = TRUE,
+               titvRaw   = FALSE)
+```
+
+---
+
+## Oncoprint
+
+The oncoprint shows the most frequently mutated genes across the cohort. Each column is a patient, each row is a gene.
+
+```{r oncoprint, fig.height=8, fig.width=14}
+oncoplot(maf        = maf,
+         top        = 20,
+         removeNonMutated = TRUE)
+```
+
+---
+
+## Most Frequently Mutated AML Genes
+
+```{r top-genes, fig.height=5}
+gene_summary <- getGeneSummary(maf)
+
+gene_summary %>%
+  arrange(desc(AlteredSamples)) %>%
+  head(15) %>%
+  mutate(Gene = fct_reorder(Hugo_Symbol, AlteredSamples)) %>%
+  ggplot(aes(x = Gene, y = AlteredSamples / getSampleSummary(maf) %>% nrow() * 100)) +
+  geom_col(fill = "#2196F3", width = 0.7) +
+  coord_flip() +
+  labs(title = "Top 15 Mutated Genes in TCGA-LAML",
+       x = NULL,
+       y = "% Patients Mutated") +
+  theme_minimal(base_size = 13)
+```
+
+---
+
+## Lollipop Plots — Key AML Drivers
+
+```{r lollipop-flt3, fig.height=4}
+lollipopPlot(maf     = maf,
+             gene    = "FLT3",
+             AACol   = "HGVSp_Short",
+             showMutationRate = TRUE,
+             labelPos = "all")
+```
+
+```{r lollipop-npm1, fig.height=4}
+lollipopPlot(maf     = maf,
+             gene    = "NPM1",
+             AACol   = "HGVSp_Short",
+             showMutationRate = TRUE)
+```
+
+```{r lollipop-dnmt3a, fig.height=4}
+lollipopPlot(maf     = maf,
+             gene    = "DNMT3A",
+             AACol   = "HGVSp_Short",
+             showMutationRate = TRUE)
+```
+
+---
+
+## Mutational Signatures
+
+```{r signatures, fig.height=6, eval=FALSE}
+maf_tnm <- trinucleotideMatrix(
+  maf            = maf,
+  ref_genome     = "BSgenome.Hsapiens.UCSC.hg38",
+  ignoreChr      = "chrM",
+  useSyn         = TRUE
+)
+```
+
+```{r sigs-plot, eval=FALSE}
+plotSignatures(maf_tnm,
+               title_size = 1.2)
+```
+
+---
+
+## Co-occurrence and Mutual Exclusivity
+
+```{r cooccurrence, fig.height=8}
+somaticInteractions(maf     = maf,
+                    top     = 20,
+                    pvalue  = c(0.05, 0.1))
+```
+
+---
+
+## VAF Distribution
+
+```{r vaf, fig.height=5}
+plotVaf(maf = maf, vafCol = "t_alt_count")
+```
+
+---
+
+## Interpretation
+
+```{r interpretation, results='asis'}
+gs <- getGeneSummary(maf)
+n_patients  <- getSampleSummary(maf) %>% nrow()
+n_mutations <- nrow(maf@data)
+
+cat(paste0(
+  "### Key Findings\n\n",
+  "- **Cohort size**: ", n_patients, " AML patients\n",
+  "- **Total somatic mutations**: ", n_mutations, "\n",
+  "- **Median mutations per patient**: ",
+  median(getSampleSummary(maf)$total), "\n\n"
+))
+
+cat("### Top mutated genes and their biological significance\n\n")
+
+top_genes <- gs %>%
+  arrange(desc(AlteredSamples)) %>%
+  head(10)
+
+annotations <- list(
+  FLT3   = "Class I mutation — activates proliferation signalling. ~25% of AML. Targetable with midostaurin/gilteritinib.",
+  NPM1   = "Class II mutation — causes nucleophosmin mislocalisation. ~30% of AML. Favourable prognosis when FLT3-ITD negative.",
+  DNMT3A = "Epigenetic regulator — DNA methyltransferase. ~20% of AML. Often founding clonal event.",
+  IDH1   = "Produces oncometabolite 2-HG, blocks differentiation. Targetable with ivosidenib.",
+  IDH2   = "Same pathway as IDH1. Targetable with enasidenib.",
+  TP53   = "Tumour suppressor — loss of function. Associated with complex karyotype and poor prognosis.",
+  RUNX1  = "Transcription factor — core binding factor AML.",
+  TET2   = "Epigenetic regulator — DNA demethylation. Associated with clonal haematopoiesis.",
+  NRAS   = "RAS signalling — Class I proliferation mutation.",
+  CEBPA  = "Transcription factor — biallelic mutations confer favourable prognosis."
+)
+
+for (i in seq_len(nrow(top_genes))) {
+  gene <- top_genes$Hugo_Symbol[i]
+  pct  <- round(top_genes$AlteredSamples[i] / n_patients * 100, 1)
+  ann  <- annotations[[gene]]
+  if (!is.null(ann)) {
+    cat(paste0("- **", gene, "** (", pct, "% of patients): ", ann, "\n"))
+  }
+}
+```
