@@ -1,5 +1,9 @@
 data/raw/
 data/reference/
+data/hcc1143/
+data/tcga_maf/*.tar.gz
+data/tcga_maf/*/
+data/processed/
 results/
 *.bam
 *.bai

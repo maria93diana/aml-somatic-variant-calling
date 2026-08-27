@@ -1,0 +1,676 @@
+<title>Reading Somatic Variants</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;600&display=swap">
+
+<style>
+  :root {
+    --bg:        #F7F5F0;
+    --surface:   #FFFFFF;
+    --border:    #DDD9D0;
+    --ink:       #1A1714;
+    --ink-2:     #5A5550;
+    --ink-3:     #8A8480;
+    --navy:      #0F2A47;
+    --blue:      #2E6096;
+    --blue-soft: #EAF1F8;
+    --green:     #3A6B4A;
+    --green-soft:#E8F2EB;
+    --amber:     #8B5E2A;
+    --amber-soft:#F5EDDF;
+    --red:       #7D3232;
+    --red-soft:  #F5E8E8;
+    --mono:      'JetBrains Mono', monospace;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg:        #111418;
+      --surface:   #1C2128;
+      --border:    #2D3440;
+      --ink:       #E8E4DC;
+      --ink-2:     #9AA0AC;
+      --ink-3:     #636B78;
+      --navy:      #4A90D9;
+      --blue:      #6AACEE;
+      --blue-soft: #1A2A3D;
+      --green:     #5FAD78;
+      --green-soft:#162A1E;
+      --amber:     #D4945A;
+      --amber-soft:#2A1E10;
+      --red:       #D47070;
+      --red-soft:  #2A1515;
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --bg:        #111418;
+    --surface:   #1C2128;
+    --border:    #2D3440;
+    --ink:       #E8E4DC;
+    --ink-2:     #9AA0AC;
+    --ink-3:     #636B78;
+    --navy:      #4A90D9;
+    --blue:      #6AACEE;
+    --blue-soft: #1A2A3D;
+    --green:     #5FAD78;
+    --green-soft:#162A1E;
+    --amber:     #D4945A;
+    --amber-soft:#2A1E10;
+    --red:       #D47070;
+    --red-soft:  #2A1515;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: 'Inter', sans-serif;
+    font-size: 16px;
+    line-height: 1.7;
+    padding: 0 1rem 5rem;
+  }
+
+  .page {
+    max-width: 760px;
+    margin: 0 auto;
+  }
+
+  /* ── Header ── */
+  .header {
+    padding: 3.5rem 0 2.5rem;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 3rem;
+  }
+  .eyebrow {
+    font-family: var(--mono);
+    font-size: 0.7rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--blue);
+    margin-bottom: 0.75rem;
+  }
+  h1 {
+    font-family: 'DM Serif Display', serif;
+    font-size: clamp(2rem, 5vw, 2.8rem);
+    line-height: 1.15;
+    color: var(--ink);
+    text-wrap: balance;
+    margin-bottom: 0.75rem;
+  }
+  .subtitle {
+    color: var(--ink-2);
+    font-size: 1.05rem;
+    max-width: 54ch;
+  }
+
+  /* ── Sections ── */
+  .section { margin-bottom: 3.5rem; }
+
+  h2 {
+    font-family: 'DM Serif Display', serif;
+    font-size: 1.55rem;
+    color: var(--navy);
+    margin-bottom: 1.25rem;
+    text-wrap: balance;
+  }
+
+  h3 {
+    font-size: 0.8rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+    margin-bottom: 0.6rem;
+  }
+
+  p { max-width: 66ch; margin-bottom: 1rem; color: var(--ink-2); }
+  p strong { color: var(--ink); font-weight: 600; }
+
+  /* ── Concept cards ── */
+  .concept-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+    margin: 1.5rem 0;
+  }
+  @media (max-width: 560px) { .concept-grid { grid-template-columns: 1fr; } }
+
+  .concept-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 1.25rem;
+  }
+  .concept-card.germline { border-left: 3px solid var(--amber); }
+  .concept-card.somatic  { border-left: 3px solid var(--green); }
+  .concept-card.artifact { border-left: 3px solid var(--red); }
+  .concept-card.info     { border-left: 3px solid var(--blue); }
+
+  .concept-card .card-label {
+    font-family: var(--mono);
+    font-size: 0.68rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    font-weight: 600;
+    margin-bottom: 0.4rem;
+  }
+  .germline .card-label { color: var(--amber); }
+  .somatic  .card-label { color: var(--green); }
+  .artifact .card-label { color: var(--red); }
+  .info     .card-label { color: var(--blue); }
+
+  .concept-card .card-title {
+    font-family: 'DM Serif Display', serif;
+    font-size: 1.2rem;
+    color: var(--ink);
+    margin-bottom: 0.5rem;
+  }
+  .concept-card p { font-size: 0.9rem; margin-bottom: 0; }
+
+  /* ── Cell diagram ── */
+  .cell-diagram {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 1.5rem;
+    margin: 1.5rem 0;
+    overflow-x: auto;
+  }
+  .cell-diagram svg { display: block; max-width: 100%; height: auto; }
+
+  /* ── VCF annotated example ── */
+  .vcf-block {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+    margin: 1.5rem 0;
+  }
+  .vcf-header {
+    background: var(--navy);
+    color: #E8F0F8;
+    font-family: var(--mono);
+    font-size: 0.72rem;
+    padding: 0.6rem 1rem;
+    letter-spacing: 0.04em;
+    overflow-x: auto;
+    white-space: nowrap;
+  }
+  .vcf-row {
+    font-family: var(--mono);
+    font-size: 0.72rem;
+    padding: 0.5rem 1rem;
+    border-top: 1px solid var(--border);
+    overflow-x: auto;
+    white-space: nowrap;
+    color: var(--ink);
+    line-height: 1.9;
+  }
+  .vcf-row .col-chrom  { color: var(--blue); }
+  .vcf-row .col-filter-pass { color: var(--green); font-weight: 600; }
+  .vcf-row .col-filter-fail { color: var(--red); }
+  .vcf-row .col-info   { color: var(--ink-2); }
+
+  /* ── Field table ── */
+  .field-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 1.25rem 0;
+    font-size: 0.875rem;
+  }
+  .field-table th {
+    text-align: left;
+    font-size: 0.7rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+    padding: 0.4rem 0.75rem;
+    border-bottom: 1px solid var(--border);
+  }
+  .field-table td {
+    padding: 0.55rem 0.75rem;
+    border-bottom: 1px solid var(--border);
+    vertical-align: top;
+    color: var(--ink-2);
+  }
+  .field-table tr:last-child td { border-bottom: none; }
+  .field-table td:first-child {
+    font-family: var(--mono);
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: var(--blue);
+    white-space: nowrap;
+    width: 9rem;
+  }
+  .field-table td strong { color: var(--ink); font-weight: 600; }
+
+  .badge {
+    display: inline-block;
+    font-family: var(--mono);
+    font-size: 0.68rem;
+    font-weight: 600;
+    padding: 0.15em 0.5em;
+    border-radius: 4px;
+    white-space: nowrap;
+  }
+  .badge-green  { background: var(--green-soft); color: var(--green); }
+  .badge-amber  { background: var(--amber-soft); color: var(--amber); }
+  .badge-red    { background: var(--red-soft);   color: var(--red); }
+  .badge-blue   { background: var(--blue-soft);  color: var(--blue); }
+
+  /* ── Scale bars ── */
+  .scale-row {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin: 0.35rem 0;
+    font-size: 0.85rem;
+  }
+  .scale-label {
+    font-family: var(--mono);
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: var(--blue);
+    width: 6rem;
+    flex-shrink: 0;
+  }
+  .scale-bar-wrap {
+    flex: 1;
+    background: var(--border);
+    border-radius: 3px;
+    height: 6px;
+    overflow: hidden;
+  }
+  .scale-bar { height: 100%; border-radius: 3px; }
+
+  .rule { border: none; border-top: 1px solid var(--border); margin: 2.5rem 0; }
+
+  /* ── Call-out box ── */
+  .callout {
+    background: var(--blue-soft);
+    border-left: 3px solid var(--blue);
+    border-radius: 0 6px 6px 0;
+    padding: 1rem 1.25rem;
+    margin: 1.25rem 0;
+    font-size: 0.9rem;
+    color: var(--ink-2);
+  }
+  .callout strong { color: var(--ink); }
+
+  /* ── 4-question checklist ── */
+  .checklist { list-style: none; margin: 1rem 0; }
+  .checklist li {
+    display: flex;
+    gap: 0.75rem;
+    padding: 0.65rem 0;
+    border-bottom: 1px solid var(--border);
+    font-size: 0.9rem;
+    color: var(--ink-2);
+    align-items: flex-start;
+  }
+  .checklist li:last-child { border-bottom: none; }
+  .checklist .q-num {
+    font-family: 'DM Serif Display', serif;
+    font-size: 1.1rem;
+    color: var(--blue);
+    flex-shrink: 0;
+    width: 1.5rem;
+    line-height: 1.4;
+  }
+  .checklist strong { color: var(--ink); }
+</style>
+
+<div class="page">
+
+  <header class="header">
+    <div class="eyebrow">Project 02 — HCC1143 · Mutect2 · GRCh38 chr22</div>
+    <h1>Reading Somatic Variants</h1>
+    <p class="subtitle">What the output files mean, field by field — with real values from this pipeline.</p>
+  </header>
+
+  <!-- ── 1. The core biology ── -->
+  <section class="section">
+    <h2>Two kinds of mutation</h2>
+    <p>Before you can read a VCF, you need to know what Mutect2 is looking for — and what it's trying to ignore.</p>
+
+    <div class="concept-grid">
+      <div class="concept-card germline">
+        <div class="card-label">Germline</div>
+        <div class="card-title">Born with it</div>
+        <p>A variant present in <strong>every cell</strong> of the body, inherited from a parent. About <strong>3 million</strong> per person. These are normal — not disease-causing (usually) — and we want to <em>exclude</em> them from a somatic callset.</p>
+      </div>
+      <div class="concept-card somatic">
+        <div class="card-label">Somatic</div>
+        <div class="card-title">Acquired in the tumor</div>
+        <p>A mutation that arose <strong>after conception</strong>, in a single cell that then divided. Present only in the tumor (and its descendants). These are what we want to <em>find</em> — they drive cancer.</p>
+      </div>
+    </div>
+
+    <p>The matched normal sample (HCC1143BL) is the key to separating these. Any variant seen in the normal is, by definition, germline. Mutect2 subtracts it. What remains — present in tumor but absent in normal — is a somatic candidate.</p>
+
+    <!-- Cell diagram -->
+    <div class="cell-diagram">
+      <svg viewBox="0 0 680 200" xmlns="http://www.w3.org/2000/svg" font-family="Inter, sans-serif">
+        <!-- Zygote -->
+        <circle cx="80" cy="100" r="38" fill="none" stroke="#3D5A80" stroke-width="1.5" opacity="0.6"/>
+        <text x="80" y="96" text-anchor="middle" font-size="11" fill="#3D5A80" font-weight="600">Zygote</text>
+        <text x="80" y="111" text-anchor="middle" font-size="9" fill="#3D5A80" opacity="0.8">inherited</text>
+        <text x="80" y="123" text-anchor="middle" font-size="9" fill="#3D5A80" opacity="0.8">variants</text>
+
+        <!-- Arrow to normal -->
+        <line x1="120" y1="80" x2="210" y2="50" stroke="#8A8480" stroke-width="1" stroke-dasharray="4,3"/>
+        <!-- Arrow to tumor -->
+        <line x1="120" y1="120" x2="210" y2="155" stroke="#8A8480" stroke-width="1" stroke-dasharray="4,3"/>
+
+        <!-- Normal cell -->
+        <circle cx="260" cy="45" r="34" fill="none" stroke="#8B5E2A" stroke-width="1.5" opacity="0.7"/>
+        <text x="260" y="41" text-anchor="middle" font-size="10" fill="#8B5E2A" font-weight="600">Normal</text>
+        <text x="260" y="54" text-anchor="middle" font-size="9" fill="#8B5E2A" opacity="0.8">germline only</text>
+
+        <!-- Tumor cell -->
+        <circle cx="260" cy="160" r="34" fill="none" stroke="#3A6B4A" stroke-width="1.5" opacity="0.7"/>
+        <text x="260" y="152" text-anchor="middle" font-size="10" fill="#3A6B4A" font-weight="600">Tumor</text>
+        <text x="260" y="165" text-anchor="middle" font-size="9" fill="#3A6B4A" opacity="0.8">germline +</text>
+        <text x="260" y="177" text-anchor="middle" font-size="9" fill="#3A6B4A" opacity="0.8">somatic muts</text>
+
+        <!-- Mutect2 box -->
+        <rect x="340" y="75" width="120" height="50" rx="6" fill="none" stroke="#2E6096" stroke-width="1.5"/>
+        <text x="400" y="97" text-anchor="middle" font-size="11" fill="#2E6096" font-weight="600">Mutect2</text>
+        <text x="400" y="112" text-anchor="middle" font-size="9" fill="#2E6096" opacity="0.8">tumor − normal</text>
+
+        <!-- Arrows in -->
+        <line x1="294" y1="45" x2="338" y2="88" stroke="#8B5E2A" stroke-width="1" stroke-dasharray="4,3"/>
+        <line x1="294" y1="158" x2="338" y2="112" stroke="#3A6B4A" stroke-width="1" stroke-dasharray="4,3"/>
+
+        <!-- Arrow out -->
+        <line x1="460" y1="100" x2="520" y2="100" stroke="#3A6B4A" stroke-width="1.5" marker-end="url(#arr)"/>
+
+        <!-- Result -->
+        <rect x="522" y="78" width="130" height="44" rx="6" fill="none" stroke="#3A6B4A" stroke-width="1.5"/>
+        <text x="587" y="97" text-anchor="middle" font-size="10" fill="#3A6B4A" font-weight="600">Somatic variants</text>
+        <text x="587" y="111" text-anchor="middle" font-size="9" fill="#3A6B4A" opacity="0.8">54 PASS on chr22</text>
+
+        <defs>
+          <marker id="arr" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+            <path d="M0,0 L0,6 L8,3 z" fill="#3A6B4A"/>
+          </marker>
+        </defs>
+      </svg>
+    </div>
+  </section>
+
+  <hr class="rule"/>
+
+  <!-- ── 2. VAF ── -->
+  <section class="section">
+    <h2>Variant allele frequency (VAF / AF)</h2>
+    <p>This is the single most important number on a somatic variant. It answers: <strong>in what fraction of reads does the mutation appear?</strong></p>
+
+    <p>Formula: <code style="font-family:var(--mono); font-size:0.85rem; color:var(--blue)">AF = alt_reads / (ref_reads + alt_reads)</code></p>
+
+    <p>Why is it never 50% or 100% in tumors?</p>
+    <div class="concept-grid">
+      <div class="concept-card info">
+        <div class="card-label">Tumor heterogeneity</div>
+        <div class="card-title">Not all cells are identical</div>
+        <p>A mutation that arose early is in all tumor cells (~50% VAF in a diploid clone). A later mutation is only in a <em>subclone</em> — maybe 20% of cells → ~10% VAF.</p>
+      </div>
+      <div class="concept-card info">
+        <div class="card-label">Normal contamination</div>
+        <div class="card-title">Dilution from normal cells</div>
+        <p>A tumor biopsy always contains some normal stromal cells. If 40% of cells are normal, a clonal mutation appears at 50% × 60% = <strong>~30% VAF</strong>.</p>
+      </div>
+    </div>
+
+    <p>In our data, PASS variants range from ~10% to ~40% VAF — typical for a heterogeneous breast cancer with normal cell admixture.</p>
+
+    <div class="callout">
+      <strong>Rule of thumb:</strong> VAF ~50% in <em>normal</em> = germline heterozygous. VAF ~100% in normal = germline homozygous. VAF 5–40% only in tumor, ~0% in normal = somatic candidate.
+    </div>
+  </section>
+
+  <hr class="rule"/>
+
+  <!-- ── 3. INFO fields ── -->
+  <section class="section">
+    <h2>INFO fields — per-variant statistics</h2>
+    <p>The INFO column carries Mutect2's statistical evidence. These are the fields that decide whether a variant becomes PASS or gets filtered.</p>
+
+    <table class="field-table">
+      <thead>
+        <tr>
+          <th>Field</th>
+          <th>Meaning &amp; how to read it</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>TLOD</td>
+          <td>
+            <strong>Tumor Log Odds.</strong> The primary signal: how many times more likely is this a real somatic mutation than a sequencing error? Expressed as a log<sub>10</sub> odds ratio.
+            <br><br>
+            <div class="scale-row"><span class="scale-label">TLOD 3</span><div class="scale-bar-wrap"><div class="scale-bar" style="width:20%;background:var(--red)"></div></div><span class="badge badge-red">weak</span></div>
+            <div class="scale-row"><span class="scale-label">TLOD 6.3</span><div class="scale-bar-wrap"><div class="scale-bar" style="width:42%;background:var(--amber)"></div></div><span class="badge badge-amber">default threshold</span></div>
+            <div class="scale-row"><span class="scale-label">TLOD 12+</span><div class="scale-bar-wrap"><div class="scale-bar" style="width:80%;background:var(--green)"></div></div><span class="badge badge-green">high confidence</span></div>
+            <br>Our first example variant had <code style="font-family:var(--mono)">TLOD=12.19</code> — well above threshold.
+          </td>
+        </tr>
+        <tr>
+          <td>NLOD</td>
+          <td>
+            <strong>Normal Log Odds.</strong> How confident are we that the <em>normal sample</em> is truly homozygous reference? Low NLOD means the normal also has alt reads → the variant might be germline.
+            <br><br>
+            <span class="badge badge-amber">NLOD &lt; 2.2</span> → Mutect2 is uncertain about the normal — flag for review.<br>
+            <span class="badge badge-green">NLOD 20+</span> → Normal is very clean, strong evidence it's somatic.
+          </td>
+        </tr>
+        <tr>
+          <td>NALOD</td>
+          <td>
+            <strong>Normal Artifact Log Odds.</strong> Specifically tests: is this variant consistent with a germline artifact in the normal? Positive = somatic; negative = some alt reads in normal too.
+            <br><br>
+            A slightly negative NALOD (like <code style="font-family:var(--mono)">−0.95</code> or <code style="font-family:var(--mono)">−1.28</code>) doesn't automatically fail the variant — FilterMutectCalls weighs it against all other evidence. But a strongly negative value raises suspicion.
+          </td>
+        </tr>
+        <tr>
+          <td>POPAF</td>
+          <td>
+            <strong>Population Allele Frequency</strong> (in gnomAD, log scale). How common is this alt allele in the healthy population?
+            <br><br>
+            <span class="badge badge-green">POPAF = 6.0</span> = not in gnomAD at all → novel → likely somatic.<br>
+            <span class="badge badge-red">POPAF &lt; 2.0</span> = common in population → almost certainly germline, not somatic.
+          </td>
+        </tr>
+        <tr>
+          <td>DP</td>
+          <td>
+            <strong>Total depth.</strong> Total reads covering this position (ref + alt). Low depth = unreliable calls. Anything below 10× is very uncertain; good somatic calling needs 20–50× tumor depth.
+          </td>
+        </tr>
+        <tr>
+          <td>MBQ</td>
+          <td>
+            <strong>Median Base Quality</strong> for ref reads, alt reads. Base quality = how confident the sequencer was when it called that base. <span class="badge badge-red">Below 20</span> = 1 error per 100 bases = unreliable. <span class="badge badge-green">30+</span> = good.
+          </td>
+        </tr>
+        <tr>
+          <td>MMQ</td>
+          <td>
+            <strong>Median Mapping Quality.</strong> How uniquely does this read map to the genome? <span class="badge badge-green">60 = uniquely mapped</span> (best). <span class="badge badge-red">Below 30</span> = the read could belong to multiple locations → the alt allele might be a misalignment artifact from a repeat region.
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+  <hr class="rule"/>
+
+  <!-- ── 4. FORMAT fields ── -->
+  <section class="section">
+    <h2>FORMAT fields — per-sample read counts</h2>
+    <p>The FORMAT column defines the structure; the last two columns contain the actual values for <strong>NORMAL</strong> (first) and <strong>TUMOR</strong> (second).</p>
+
+    <table class="field-table">
+      <thead>
+        <tr><th>Field</th><th>Meaning &amp; how to read it</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>GT</td>
+          <td>
+            <strong>Genotype.</strong> 0 = reference allele, 1 = alternate allele.
+            <br><br>
+            <span class="badge badge-green">0/1</span> heterozygous (one ref copy, one alt copy) — typical for somatic mutation in a diploid tumor.<br>
+            <span class="badge badge-amber">0/0</span> homozygous reference — what you want to see in the normal.<br>
+            <span class="badge badge-red">1/1</span> homozygous alternate — either loss of heterozygosity (LOH) or a germline homozygous variant.
+          </td>
+        </tr>
+        <tr>
+          <td>AD</td>
+          <td>
+            <strong>Allele Depth.</strong> Format: <code style="font-family:var(--mono)">ref_reads,alt_reads</code>.
+            <br><br>
+            Example: Tumor <code style="font-family:var(--mono)">AD=22,7</code> → 22 reads say REF (T), 7 reads say ALT (C). Total = 29 reads. The 7 alt reads are our evidence for the mutation. <strong>This is the raw read count — always check it.</strong> An AF of 30% from 3/10 reads is much less reliable than 30% from 30/100.
+          </td>
+        </tr>
+        <tr>
+          <td>AF</td>
+          <td>
+            <strong>Allele Frequency = VAF.</strong> Computed as alt_reads / total_reads. This is the most biologically meaningful number on the line. See the VAF section above.
+          </td>
+        </tr>
+        <tr>
+          <td>DP</td>
+          <td>
+            <strong>Depth per sample.</strong> Total reads at this position for this sample. May differ slightly from INFO DP because INFO DP aggregates both samples.
+          </td>
+        </tr>
+        <tr>
+          <td>F1R2 / F2R1</td>
+          <td>
+            <strong>Orientation counts.</strong> F1R2 = reads where the first read of the pair is on the forward strand. F2R1 = first read on reverse strand. For a real variant, you expect <strong>roughly equal counts</strong> on both orientations.
+            <br><br>
+            If alt reads are almost all F1R2 with very few F2R1 (or vice versa), this is the signature of an <strong>orientation artifact</strong> — a systematic sequencing error, not a true mutation. LearnReadOrientationModel detects and flags these.
+          </td>
+        </tr>
+        <tr>
+          <td>SB</td>
+          <td>
+            <strong>Strand Bias.</strong> Format: <code style="font-family:var(--mono)">ref-fwd, ref-rev, alt-fwd, alt-rev</code>.
+            <br><br>
+            Example: <code style="font-family:var(--mono)">SB=3,19,2,5</code> — alt reads split 2 forward / 5 reverse, ref reads split 3 / 19. Severe imbalance in the alt counts (e.g., 8/0 or 0/8) triggers the <code>strand_bias</code> filter.
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+  <hr class="rule"/>
+
+  <!-- ── 5. Orientation artifacts ── -->
+  <section class="section">
+    <h2>Orientation artifacts — what F1R2/F2R1 catches</h2>
+
+    <div class="concept-grid">
+      <div class="concept-card artifact">
+        <div class="card-label">OxoG (oxidative)</div>
+        <div class="card-title">G → T on one strand</div>
+        <p>Oxidized guanine (8-oxoG) base-pairs with adenine instead of cytosine during sequencing. Appears as G→T only on reads where the damaged base was read on the <em>forward</em> strand.</p>
+      </div>
+      <div class="concept-card artifact">
+        <div class="card-label">FFPE (formalin)</div>
+        <div class="card-title">C → T deamination</div>
+        <p>Formalin fixation causes cytosine deamination to uracil, read as thymine. Appears as C→T enriched on one strand orientation — a classic FFPE artifact seen in clinical tissue samples.</p>
+      </div>
+    </div>
+
+    <p>Both patterns look exactly like real mutations in the VCF — same base change, similar depth. The only tell is the <strong>strand imbalance</strong> in F1R2 vs F2R1 counts.</p>
+
+    <p>The pipeline's solution:</p>
+    <ol style="padding-left:1.5rem; margin-bottom:1rem; color:var(--ink-2); font-size:0.9rem; line-height:2;">
+      <li>Mutect2 collects F1R2/F2R1 counts for every candidate alt allele → <code style="font-family:var(--mono)">f1r2.tar.gz</code></li>
+      <li>LearnReadOrientationModel builds a per-trinucleotide-context artifact model → <code style="font-family:var(--mono)">artifact_prior.tar.gz</code></li>
+      <li>FilterMutectCalls multiplies each variant's somatic probability by the artifact prior — if the strand pattern matches a known artifact, the posterior drops below the threshold → filtered</li>
+    </ol>
+
+    <div class="callout">
+      In our chr22 data, the <code style="font-family:var(--mono)">orientation</code> filter removed only ~0.02 estimated false positives — the data is clean (cell line DNA, not FFPE). In clinical tissue samples this filter removes far more.
+    </div>
+  </section>
+
+  <hr class="rule"/>
+
+  <!-- ── 6. Annotated example ── -->
+  <section class="section">
+    <h2>A PASS variant, decoded</h2>
+    <p>This is real line from <code style="font-family:var(--mono); font-size:0.82rem">HCC1143_tumor.filtered.vcf.gz</code>:</p>
+
+    <div class="vcf-block">
+      <div class="vcf-header">CHROM&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;POS&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;ID&nbsp;&nbsp;REF&nbsp;ALT&nbsp;&nbsp;QUAL&nbsp;FILTER&nbsp;&nbsp;INFO&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;FORMAT&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;NORMAL&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;TUMOR</div>
+      <div class="vcf-row">
+        <span class="col-chrom">chr22</span>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;11067996&nbsp;&nbsp;&nbsp;.&nbsp;&nbsp;&nbsp;A&nbsp;&nbsp;&nbsp;T&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;.&nbsp;&nbsp;&nbsp;&nbsp;<span class="col-filter-pass">PASS</span>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;...TLOD=4.96;POPAF=6.00;GERMQ=93;...&nbsp;&nbsp;&nbsp;&nbsp;GT:AD:AF:DP:...&nbsp;&nbsp;&nbsp;0/0:18,0:0.05:18&nbsp;&nbsp;&nbsp;&nbsp;0/1:28,2:0.10:30
+      </div>
+    </div>
+
+    <table class="field-table" style="margin-top:1rem">
+      <thead><tr><th>What we read</th><th>What it means</th></tr></thead>
+      <tbody>
+        <tr>
+          <td>FILTER = <span class="badge badge-green">PASS</span></td>
+          <td>FilterMutectCalls evaluated all criteria and this variant passed them all.</td>
+        </tr>
+        <tr>
+          <td>REF=A, ALT=T</td>
+          <td>A→T transversion at chr22:11,067,996. This is a somatic substitution.</td>
+        </tr>
+        <tr>
+          <td>TLOD = 4.96</td>
+          <td>Below the typical default of 6.3, but FilterMutectCalls uses a Bayesian posterior, not a hard cutoff — this variant's other evidence pushed it over threshold.</td>
+        </tr>
+        <tr>
+          <td>POPAF = 6.00</td>
+          <td>Not in population databases. Novel variant — strong prior for somatic.</td>
+        </tr>
+        <tr>
+          <td>GERMQ = 93</td>
+          <td>93% probability this is somatic, not germline. Very confident.</td>
+        </tr>
+        <tr>
+          <td>Normal: GT=0/0, AD=18,0</td>
+          <td>Normal has 18 ref reads and <strong>zero alt reads</strong>. The normal is perfectly clean — this is not germline.</td>
+        </tr>
+        <tr>
+          <td>Tumor: GT=0/1, AD=28,2, AF=0.10</td>
+          <td>Tumor has 28 ref + 2 alt reads. VAF = 10%. Low depth (30 total) but with a clean normal and good GERMQ, this passes. Likely a subclonal mutation.</td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+  <hr class="rule"/>
+
+  <!-- ── 7. Quick checklist ── -->
+  <section class="section">
+    <h2>Four questions for any variant</h2>
+    <ul class="checklist">
+      <li>
+        <span class="q-num">1</span>
+        <div><strong>Is the tumor signal strong?</strong> Check <code style="font-family:var(--mono); font-size:0.82rem">TLOD</code> and tumor <code style="font-family:var(--mono); font-size:0.82rem">AD</code>. TLOD &gt; 6 and at least 3–5 alt reads gives confidence. One or two alt reads out of 10 total is marginal even if AF looks interesting.</div>
+      </li>
+      <li>
+        <span class="q-num">2</span>
+        <div><strong>Is the normal truly clean?</strong> Check normal <code style="font-family:var(--mono); font-size:0.82rem">AD</code> and <code style="font-family:var(--mono); font-size:0.82rem">NLOD</code>. Normal AD should be something like <code style="font-family:var(--mono); font-size:0.82rem">40,0</code> or <code style="font-family:var(--mono); font-size:0.82rem">40,2</code> (a few alt reads is noise). If the normal has 10+ alt reads, suspect germline.</div>
+      </li>
+      <li>
+        <span class="q-num">3</span>
+        <div><strong>Is the VAF biologically plausible?</strong> Tumor VAF 5–50% is normal for a somatic mutation. Exactly 50% in the tumor <em>and</em> the normal = germline het. Near 0% in both = likely noise. &gt;50% in tumor = possible LOH event.</div>
+      </li>
+      <li>
+        <span class="q-num">4</span>
+        <div><strong>Are the strand counts balanced?</strong> Compare tumor <code style="font-family:var(--mono); font-size:0.82rem">F1R2</code> and <code style="font-family:var(--mono); font-size:0.82rem">F2R1</code> for the alt allele. Both should have reads. All alt reads on one strand = orientation artifact, even if it passed filtering.</div>
+      </li>
+    </ul>
+  </section>
+
+</div>
