@@ -193,4 +193,28 @@ for (i in seq_len(nrow(top_genes))) {
     cat(paste0("- **", gene, "** (", pct, "% of patients): ", ann, "\n"))
   }
 }
+
+cat("
+### Two-hit model and clonal evolution
+
+Consistent with the two-hit model of AML, mutations in **Class I genes** (FLT3, KRAS, KIT —
+activating proliferation signalling) and **Class II genes** (NPM1, RUNX1, DNMT3A — causing
+differentiation block) are mutually exclusive within class but co-occur across classes, as
+confirmed by the somatic interaction analysis. A single Class I mutation is insufficient for
+leukemia; a Class II differentiation block is required, and vice versa.
+
+**DNMT3A** emerges as a likely founding clonal event: it shows the highest VAF variability
+(consistent with early acquisition in a stem cell), co-occurs with multiple secondary drivers,
+and its mutations are detectable in normal ageing blood (clonal haematopoiesis of indeterminate
+potential, CHIP) years before AML diagnosis.
+
+**FLT3 and KRAS** show lower VAF distributions consistent with subclonal acquisition —
+secondary hits that accelerate proliferation in an already partially transformed clone.
+
+Note on dataset limitations: this analysis uses GDC masked somatic mutation files, which
+underrepresent large indels. FLT3-ITD (~25% of AML in the literature) and NPM1 frameshift
+insertions (~30%) are partially filtered, explaining the lower observed frequencies (4.6% and
+8.4% respectively). A complete AML mutation landscape would require a dedicated structural
+variant caller for FLT3-ITD detection.
+")
 ```
